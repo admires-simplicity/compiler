@@ -190,6 +190,11 @@ int main(int argc, char **argv) {
   ValueExpr ve1 = { 1 };
   UnaryExpr ue1 = { UPLUS, { 1 } };
   BinaryExpr be1 = { { 2 }, BTIMES, { 3 } };
+
+  printf("ve1 value is %d\n", evalValueExpr(ve1));
+  printf("ue1 value is %d\n", evalUnaryExpr(ue1));
+  printf("be1 value is %d\n", evalBinaryExpr(be1));
+  
   
   return 0;
 }
