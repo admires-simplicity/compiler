@@ -17,7 +17,8 @@ typedef struct {
 
 typedef enum {
   ValueExpr,
-  BinExpr,
+  /* BinExpr, */
+  BinAddExpr,
 } ExprType;
 
 /* typedef enum { */
@@ -78,18 +79,50 @@ void freeValue(Value *value) {
   free(value);
 }
 
-Expr *makeExpr(ExprType etype, size_t subexpr_count, void *subexprs) {
-  Expr *expr = malloc(sizeof (Expr));
-  expr->etype = etype;
-  expr->subexpr_count = subexpr_count;
-  if (subexpr_count == 0 || subexprs == NULL) {
-    // malformed. can't have an expression with no subexprs.
+Expr *exprAlloc() {
+  return malloc(sizeof (Expr));
+}
+
+void makeExprAt(Expr *exprPtr, ExprType etype, size_t subexpr_count, void *subexprs) {
+  exprPtr->etype = etype;
+  exprPtr->subexpr_count = subexpr_count;
+  if (subexpr_count == 0 && subexprs != NULL) {
+    // malformed.
     // TODO: implement better error handling
+
+    printf("ERROR: passed subexpr_count == 0 and subexprs != NULL to makeExprAt\n");
     exit(1);
   }
 
-  expr->subexprs = subexprs;
-  return expr;
+  exprPtr->subexprs = subexprs;
+}
+		
+Expr *makeExpr(ExprType etype, size_t subexpr_count, void *subexprs) {
+  Expr *exprPtr = exprAlloc();
+  makeExprAt(exprPtr, etype, subexpr_count, subexprs);
+  return exprPtr;
+}
+
+/*
+ * recursively free expression, subexprs, and values in subexprs.
+ * works now because I'm never sharing resources across expressions.
+ * will break things later if I start sharing exprs...
+ */
+void freeExpr(Expr *exprPtr) {
+  printf("free exprtype %d\n", exprPtr->etype);
+  
+  switch (exprPtr->etype) {
+  case ValueExpr:
+    freeValue(exprPtr->subexprs);
+    break;
+  default:
+    for (int i = 0; i < exprPtr->subexpr_count; ++i) {
+      freeExpr((Expr *)exprPtr->subexprs + i); 
+    }
+    break;
+  }
+  
+  free(exprPtr);
 }
 
 int main(int argc, char **argv) {
@@ -97,10 +130,35 @@ int main(int argc, char **argv) {
   Value *value1 = make_ui64Value(12345);
   Expr *expr1 = makeExpr(ValueExpr, 1, value1);
 
+  Expr *expr2_subexprs = malloc(2 * sizeof (Expr));
+  makeExprAt(expr2_subexprs + 0, ValueExpr, 1, make_ui64Value(500));
+  makeExprAt(expr2_subexprs + 1, ValueExpr, 1, make_ui64Value(40));
+  Expr *expr2 = makeExpr(BinAddExpr, 2, expr2_subexprs);
+
   printf("value1->octabytes[0] == %d\n", value1->octabytes[0]);
   printf("((Value *)expr1->subexprs)->octabytes[0] == %d\n", ((Value *)expr1->subexprs)->octabytes[0]);
+
+  printf("((Value *)expr2_subexprs->subexprs)->octabytes[0] == %d\n", ((Value *)expr2_subexprs->subexprs)->octabytes[0]);
+  printf("((Value *)expr2_subexprs->subexprs)->octabytes[0] == %d\n", ((Value *)(expr2_subexprs + 1)->subexprs)->octabytes[0]);
+
+  printf("%d\n",
+	 ((Value *)(expr2_subexprs + 0)->subexprs)->octabytes[0]
+	 +
+	 ((Value *)(expr2_subexprs + 1)->subexprs)->octabytes[0]);
+
+
+ 
   
-  freeValue(value1);
+  /* freeValue(value1); */
+
+
+  printf("free expr1\n");
+  freeExpr(expr1);
+  printf("\n");
+
+  printf("free expr2\n");
+  freeExpr(expr2);
+  printf("\n");
   
   return 0;
 }
