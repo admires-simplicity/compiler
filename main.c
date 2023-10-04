@@ -66,6 +66,7 @@ Value *makeValue(ValueType vtype, size_t size, void *values) {
 
 void make_ui64ValueAt(Value* valuePtr, uint64_t x) {
   valuePtr->octabytes[0] = x;
+  valuePtr->size = 1;
 }
 
 Value *make_ui64Value(uint64_t x) {
@@ -157,9 +158,76 @@ void freeValueExpr(Expr *exprPtr) {
 
 void breaker() { }
 
+typedef struct {
+  size_t size;
+  size_t next;  //maybe "used" instead of "next" ?
+  char *buf;
+} Buffer;
+
+void initializeBuffer(Buffer *buffer) {
+  for (size_t i = 0; i < buffer->size; ++i) {
+    buffer->buf[i] = 0;
+  }
+}
+
+Buffer *makeBuffer(size_t size) {
+  //TODO: error handling on malloc
+  Buffer *buffer = malloc(sizeof (Buffer));
+  char *buf = malloc(size * sizeof (char));
+  buffer->size = size;
+  buffer->next = 0;
+  buffer->buf = buf;
+  initializeBuffer(buffer);
+  return buffer;
+}
+
+void freeBuffer(Buffer *buffer) {
+  free(buffer->buf);
+  free(buffer);
+}
+
+// bool writeBuffer(Buffer *dst, Buffer *src) {
+//   if (dst->next + src->next + 1 > dst->size) { // require an extra '\0' at buf end
+//     return false; // TODO: make buffer bigger
+//   }
+//   for (int i = 0; i < src->size; ++i) {
+//     dst->buf[dst->next++] = src->buf[i];
+//   }
+// }
+
+bool BufferWriteChar(Buffer *buffer, char c) {
+  if (buffer->next == buffer->size) return false;
+
+  buffer->buf[buffer->next++] = c;
+  return true;
+}
+
+void evalValue(Buffer *buffer, Value *value) {
+  if (value->vtype != ui64Value || value->size != 1) {
+    assert(0 && "Unexpected\\unimplemented value type");
+  }
+
+  int to_write = snprintf(buffer->buf + buffer->next,
+    buffer->size - buffer->next - 1, "%d", value->octabytes[0]);
+
+  if (to_write > buffer->size - buffer->next - 1) {
+    assert(0 && "TODO: handle error when int to write is larger than buffer");
+  }
+
+  buffer->next += to_write;
+}
 
 int main(int argc, char **argv) {
-  
+  Buffer *output = makeBuffer(1024);
+  // BufferWriteChar(output, '1');
+  // BufferWriteChar(output, '2');
+  // BufferWriteChar(output, '3');
+  // BufferWriteChar(output, '\n');
+  // BufferWriteChar(output, '4');
+  // BufferWriteChar(output, '5');
+  // BufferWriteChar(output, '6');
+  // BufferWriteChar(output, '\n');
+
   Value *value1 = make_ui64Value(12345);
   Expr *expr1 = makeExpr(ValueExpr, 1, value1);
 
@@ -175,7 +243,13 @@ int main(int argc, char **argv) {
       makeValueExpr(make_ui64Value(10)),
       makeValueExpr(make_ui64Value(1))));
 
-  breaker();
+  
+
+
+  evalValue(output, value1);
+  BufferWriteChar(output, '\n');
+
+
 
   printf("free expr1\n");
   freeExpr(expr1);
@@ -188,6 +262,12 @@ int main(int argc, char **argv) {
   printf("free expr3\n");
   freeExpr(expr3);
   printf("\n");
+
+  breaker();
+
+  printf(output->buf);
+
+  freeBuffer(output);
   
   return 0;
 }
