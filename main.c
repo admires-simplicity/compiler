@@ -195,11 +195,16 @@ void freeBuffer(Buffer *buffer) {
 //   }
 // }
 
+// this function should probably make buffer bigger
 bool BufferWriteChar(Buffer *buffer, char c) {
   if (buffer->next == buffer->size) return false;
 
   buffer->buf[buffer->next++] = c;
   return true;
+}
+
+void BufferNewline(Buffer *buffer) {
+  BufferWriteChar(buffer, '\n');
 }
 
 void evalValue(Buffer *buffer, Value *value) {
@@ -275,33 +280,51 @@ int main(int argc, char **argv) {
 
   
 
+  BufferWriteChar(output, 'i');
+  BufferWriteChar(output, 'n');
+  BufferWriteChar(output, 't');
+  BufferWriteChar(output, ' ');
+  BufferWriteChar(output, 'm');
+  BufferWriteChar(output, 'a');
+  BufferWriteChar(output, 'i');
+  BufferWriteChar(output, 'n');
+  BufferWriteChar(output, '(');
+  BufferWriteChar(output, ')');
+  BufferWriteChar(output, '{');
+  BufferNewline(output);
 
   evalValue(output, value1);
-  BufferWriteChar(output, '\n');
+  BufferWriteChar(output, ';');
+  BufferNewline(output);
 
   evalValueExpr(output, expr1);
-  BufferWriteChar(output, '\n');
+  BufferWriteChar(output, ';');
+  BufferNewline(output);
 
   evalBinAddExpr(output, expr2);
-  BufferWriteChar(output, '\n');
+  BufferWriteChar(output, ';');
+  BufferNewline(output);
 
   evalExpr(output, expr3);
-  BufferWriteChar(output, '\n');
+  BufferWriteChar(output, ';');
+  BufferNewline(output);
+
+  BufferWriteChar(output, '}');
 
 
-  printf("free expr1\n");
+  //printf("free expr1\n");
   freeExpr(expr1);
-  printf("\n");
+  //printf("\n");
 
-  printf("free expr2\n");
+  //printf("free expr2\n");
   freeExpr(expr2);
-  printf("\n");
+  //printf("\n");
 
-  printf("free expr3\n");
+  //printf("free expr3\n");
   freeExpr(expr3);
-  printf("\n");
+  //printf("\n");
 
-  breaker();
+  //breaker();
 
   printf(output->buf);
 

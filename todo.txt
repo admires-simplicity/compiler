@@ -1,6 +1,4 @@
 writing "Buffer *buffer" is getting annoying, so I should just make a global
 "output" buffer... maybe
 
-make evalBinAddExpr recursively
-
 add BufferWriteNewline function
