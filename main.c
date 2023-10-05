@@ -217,6 +217,36 @@ void evalValue(Buffer *buffer, Value *value) {
   buffer->next += to_write;
 }
 
+void evalValueExpr(Buffer *, Expr *);
+void evalBinAddExpr(Buffer *, Expr *);
+void evalExpr(Buffer *, Expr *);
+
+
+void evalValueExpr(Buffer *buffer, Expr *expr) {
+  assert(expr->etype == ValueExpr);   //TODO: MAKE THIS BETTER
+  evalValue(buffer, expr->subexprs);
+}
+
+void evalBinAddExpr(Buffer *buffer, Expr *expr) {
+  assert(expr->etype == BinAddExpr);  //TODO: MAKE THIS BETTER
+  evalExpr(buffer, ((Expr **)expr->subexprs)[0]);
+  BufferWriteChar(buffer, '+');
+  evalExpr(buffer, ((Expr **)expr->subexprs)[1]);
+}
+
+void evalExpr(Buffer *buffer, Expr *expr) {
+  switch(expr->etype) {
+    case ValueExpr:
+      evalValueExpr(buffer, expr);
+      return;
+    case BinAddExpr:
+      evalBinAddExpr(buffer, expr);
+      return;
+    default:
+      assert(0 && "Error: Expr has unknown etype");
+  }
+}
+
 int main(int argc, char **argv) {
   Buffer *output = makeBuffer(1024);
   // BufferWriteChar(output, '1');
@@ -249,6 +279,14 @@ int main(int argc, char **argv) {
   evalValue(output, value1);
   BufferWriteChar(output, '\n');
 
+  evalValueExpr(output, expr1);
+  BufferWriteChar(output, '\n');
+
+  evalBinAddExpr(output, expr2);
+  BufferWriteChar(output, '\n');
+
+  evalExpr(output, expr3);
+  BufferWriteChar(output, '\n');
 
 
   printf("free expr1\n");
