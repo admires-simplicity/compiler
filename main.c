@@ -203,6 +203,14 @@ bool BufferWriteChar(Buffer *buffer, char c) {
   return true;
 }
 
+/* This function is dangerous in the case where the passed c_str is improperly
+ * formatted without a null terminator. This shouldn't happen because I'm only
+ * using it with string literals for now... */
+void BufferWriteString(Buffer *buffer, char *c_str) {
+  while (*c_str != '\0')
+    BufferWriteChar(buffer, *c_str++);
+}
+
 void BufferNewline(Buffer *buffer) {
   BufferWriteChar(buffer, '\n');
 }
