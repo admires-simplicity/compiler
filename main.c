@@ -195,9 +195,26 @@ void freeBuffer(Buffer *buffer) {
 //   }
 // }
 
+/* Increase buffer size to new_size and '\0' initialize new bytes at buffer end
+ */
+void BufferIncreaseSize(Buffer *buffer, size_t new_size) {
+  if (new_size < buffer->size) assert(0 && "TODO: handle passing smaller size error");
+  buffer->size = new_size;
+  char *result = realloc(buffer->buf, buffer->size);
+  if (result == NULL) assert(0 && "TODO: handle realloc error");
+  buffer->buf = result;
+  for (int i = buffer->next; i < buffer->size; ++i) buffer->buf[i] = '\0';
+}
+
+void BufferDoubleSize(Buffer *buffer) {
+  BufferIncreaseSize(buffer, buffer->size * 2);
+}
+
 // this function should probably make buffer bigger
 bool BufferWriteChar(Buffer *buffer, char c) {
-  if (buffer->next == buffer->size) return false;
+  if (buffer->next == buffer->size) {
+    BufferDoubleSize(buffer); 
+  }
 
   buffer->buf[buffer->next++] = c;
   return true;
@@ -215,19 +232,35 @@ void BufferNewline(Buffer *buffer) {
   BufferWriteChar(buffer, '\n');
 }
 
+
 void evalValue(Buffer *buffer, Value *value) {
   if (value->vtype != ui64Value || value->size != 1) {
     assert(0 && "Unexpected\\unimplemented value type");
   }
 
-  int to_write = snprintf(buffer->buf + buffer->next,
-    buffer->size - buffer->next - 1, "%d", value->octabytes[0]);
+  Buffer *tmp = makeBuffer(0);
 
-  if (to_write > buffer->size - buffer->next - 1) {
-    assert(0 && "TODO: handle error when int to write is larger than buffer");
+  // int to_write = snprintf(buffer->buf + buffer->next,
+  //   buffer->size - buffer->next, "%d", value->octabytes[0]);
+
+  // if (to_write > buffer->size - buffer->next) {
+  //   BufferIncreaseSize(buffer); // this should be in a loop or something...
+  // }
+
+  // buffer->next += to_write;
+
+  int rep_len = snprintf(tmp->buf,
+    tmp->size, "%d", value->octabytes[0]);
+
+  if (rep_len + 1 > tmp->size) {
+    BufferIncreaseSize(tmp, rep_len + 1);
+    rep_len = snprintf(tmp->buf, buffer->size, "%d", value->octabytes[0]);
+    assert(tmp->size >= rep_len + 1);
   }
 
-  buffer->next += to_write;
+  BufferWriteString(buffer, tmp->buf);
+
+  freeBuffer(tmp);
 }
 
 void evalValueExpr(Buffer *, Expr *);
@@ -288,18 +321,25 @@ int main(int argc, char **argv) {
 
   
 
-  BufferWriteChar(output, 'i');
-  BufferWriteChar(output, 'n');
-  BufferWriteChar(output, 't');
-  BufferWriteChar(output, ' ');
-  BufferWriteChar(output, 'm');
-  BufferWriteChar(output, 'a');
-  BufferWriteChar(output, 'i');
-  BufferWriteChar(output, 'n');
-  BufferWriteChar(output, '(');
-  BufferWriteChar(output, ')');
-  BufferWriteChar(output, '{');
-  BufferNewline(output);
+  // BufferWriteChar(output, 'i');
+  // BufferWriteChar(output, 'n');
+  // BufferWriteChar(output, 't');
+  // BufferWriteChar(output, ' ');
+  // BufferWriteChar(output, 'm');
+  // BufferWriteChar(output, 'a');
+  // BufferWriteChar(output, 'i');
+  // BufferWriteChar(output, 'n');
+  // BufferWriteChar(output, '(');
+  // BufferWriteChar(output, ')');
+  // BufferWriteChar(output, '{');
+  // BufferNewline(output);
+  BufferWriteString(output, "int main() {\n");
+
+  breaker();
+
+  for (int i = 0; i < 10000; ++i) {
+    BufferWriteString(output, "1;\n");
+  }
 
   evalValue(output, value1);
   BufferWriteChar(output, ';');
