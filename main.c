@@ -173,8 +173,8 @@ void initializeBuffer(Buffer *buffer) {
 Buffer *makeBuffer(size_t size) {
   //TODO: error handling on malloc
   Buffer *buffer = malloc(sizeof (Buffer));
-  char *buf = malloc(size * sizeof (char));
-  buffer->size = size;
+  char *buf = malloc((size > 0 ? size : 1) * sizeof (char));
+  buffer->size = (size > 0 ? size : 1);
   buffer->next = 0;
   buffer->buf = buf;
   initializeBuffer(buffer);
@@ -185,15 +185,6 @@ void freeBuffer(Buffer *buffer) {
   free(buffer->buf);
   free(buffer);
 }
-
-// bool writeBuffer(Buffer *dst, Buffer *src) {
-//   if (dst->next + src->next + 1 > dst->size) { // require an extra '\0' at buf end
-//     return false; // TODO: make buffer bigger
-//   }
-//   for (int i = 0; i < src->size; ++i) {
-//     dst->buf[dst->next++] = src->buf[i];
-//   }
-// }
 
 /* Increase buffer size to new_size and '\0' initialize new bytes at buffer end
  */
@@ -226,6 +217,8 @@ bool BufferWriteChar(Buffer *buffer, char c) {
 void BufferWriteString(Buffer *buffer, char *c_str) {
   while (*c_str != '\0')
     BufferWriteChar(buffer, *c_str++);
+
+  BufferWriteChar(buffer, *c_str);
 }
 
 void BufferNewline(Buffer *buffer) {
@@ -240,21 +233,12 @@ void evalValue(Buffer *buffer, Value *value) {
 
   Buffer *tmp = makeBuffer(0);
 
-  // int to_write = snprintf(buffer->buf + buffer->next,
-  //   buffer->size - buffer->next, "%d", value->octabytes[0]);
-
-  // if (to_write > buffer->size - buffer->next) {
-  //   BufferIncreaseSize(buffer); // this should be in a loop or something...
-  // }
-
-  // buffer->next += to_write;
-
   int rep_len = snprintf(tmp->buf,
     tmp->size, "%d", value->octabytes[0]);
 
   if (rep_len + 1 > tmp->size) {
     BufferIncreaseSize(tmp, rep_len + 1);
-    rep_len = snprintf(tmp->buf, buffer->size, "%d", value->octabytes[0]);
+    rep_len = snprintf(tmp->buf, tmp->size, "%d", value->octabytes[0]);
     assert(tmp->size >= rep_len + 1);
   }
 
@@ -293,7 +277,26 @@ void evalExpr(Buffer *buffer, Expr *expr) {
   }
 }
 
+bool run_tests() {
+  //evalValue test
+  Buffer *b = makeBuffer(0);
+  Value *v = make_ui64Value(12345678);
+  evalValue(b, v);
+  char *expected = "12345678\0";
+  assert(b->size > strlen(expected)); //strlen(expected) is 8. expect b->size to be at least 8 + 1 because it has a \0 terminator
+  for (int i = 0; i <= strlen(expected); ++i) {
+    assert(b->buf[i] == expected[i]);
+  }
+  freeBuffer(b);
+  freeValue(v);
+
+  return true;
+}
+
 int main(int argc, char **argv) {
+
+  assert(run_tests());
+
   Buffer *output = makeBuffer(1024);
   // BufferWriteChar(output, '1');
   // BufferWriteChar(output, '2');
