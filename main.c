@@ -8,6 +8,7 @@
 
 typedef enum {
   ui64Value,
+  StringValue,
 } ValueType;
 
 typedef struct {
@@ -19,6 +20,7 @@ typedef struct {
 typedef enum {
   ValueExpr,
   BinAddExpr,
+  CallExpr,
 } ExprType;
 
 
@@ -29,6 +31,10 @@ struct Expr {
   size_t subexpr_count;
   void *subexprs;
 };
+
+typedef struct {
+  Expr *expr;
+} Statement;
 
 /*
  * vtype -- type of value to make
@@ -73,6 +79,22 @@ Value *make_ui64Value(uint64_t x) {
   Value *valuePtr = makeValue(ui64Value, 1, NULL);
   make_ui64ValueAt(valuePtr, x);
   return valuePtr;
+}
+
+Value *makeStringValue(char *str) {
+  // the literal whole reason I wrote makeValue before was so that I could
+  // use one function for making different types of values...
+  // maybe I should make this function use that one instead, but for now this
+  // is better
+  uint64_t *strOctabytesPtr = malloc((strlen(str) + 1) * sizeof (uint64_t));
+  for (int i = 0; i < strlen(str); ++i) strOctabytesPtr[i] = str[i];
+  strOctabytesPtr[strlen(str)] = '\0';
+  Value *valuePtr = malloc(sizeof (Value));
+  valuePtr->vtype = StringValue;
+  valuePtr->size = strlen(str) + 1;
+  valuePtr->octabytes = strOctabytesPtr;
+  return valuePtr;
+  //TODO: check malloc fail
 }
 
 void freeValue(Value *value) {
@@ -121,6 +143,13 @@ Expr *makeBinAddExpr(Expr *subexpr0, Expr *subexpr1) {
   return makeExpr(BinAddExpr, 2, subexprs);
 }
 
+// Expr *makeCallExpr(char *name, Expr **args) {
+//   Expr **subexprs = malloc(sizeof (char *) + sizeof (Expr **));
+//   subexprs[0] = (void *)name; // feels like I am kind of cheating the type system.
+//   subexprs[1] = (void *)args;
+//   return makeExpr(CallExpr, 2, subexprs);
+// }
+
 
 /*
  * recursively free expression, subexprs, and values in subexprs.
@@ -151,10 +180,10 @@ void freeExpr(Expr *exprPtr) {
   free(exprPtr);
 }
 
-void freeValueExpr(Expr *exprPtr) {
-  freeValue(exprPtr->subexprs);
-  free(exprPtr);
-}
+// void freeValueExpr(Expr *exprPtr) {
+//   freeValue(exprPtr->subexprs);
+//   free(exprPtr);
+// }
 
 void breaker() { }
 
@@ -203,7 +232,7 @@ void BufferDoubleSize(Buffer *buffer) {
 
 // this function should probably make buffer bigger
 bool BufferWriteChar(Buffer *buffer, char c) {
-  if (buffer->next == buffer->size) {
+  if (buffer->next == buffer->size - 1) { // writing to last char in buf
     BufferDoubleSize(buffer); 
   }
 
@@ -217,18 +246,15 @@ bool BufferWriteChar(Buffer *buffer, char c) {
 void BufferWriteString(Buffer *buffer, char *c_str) {
   while (*c_str != '\0')
     BufferWriteChar(buffer, *c_str++);
-
-  BufferWriteChar(buffer, *c_str);
 }
 
 void BufferNewline(Buffer *buffer) {
   BufferWriteChar(buffer, '\n');
 }
 
-
-void evalValue(Buffer *buffer, Value *value) {
+void eval_ui64Value(Buffer *buffer, Value *value) {
   if (value->vtype != ui64Value || value->size != 1) {
-    assert(0 && "Unexpected\\unimplemented value type");
+    assert(0 && "Unexpected value type");
   }
 
   Buffer *tmp = makeBuffer(0);
@@ -245,6 +271,26 @@ void evalValue(Buffer *buffer, Value *value) {
   BufferWriteString(buffer, tmp->buf);
 
   freeBuffer(tmp);
+
+}
+
+void evalStringValue (Buffer *buffer, Value *value) {
+  for (int i = 0; i < value->size - 1; ++i) { // don't write null terminator
+    BufferWriteChar(buffer, (char)value->octabytes[i]);
+  }
+}
+
+void evalValue(Buffer *buffer, Value *value) {
+  switch (value->vtype) {
+    case ui64Value:
+      eval_ui64Value(buffer, value);
+      break;
+    case StringValue:
+      evalStringValue(buffer, value);
+      break;
+    default:
+      assert(0 && "Unexpected or unimplemented value type");
+  }
 }
 
 void evalValueExpr(Buffer *, Expr *);
@@ -290,8 +336,23 @@ bool run_tests() {
   freeBuffer(b);
   freeValue(v);
 
+  Value *strValue = makeStringValue("Hello, World");
+  b = makeBuffer(0);
+  evalValue(b, strValue);
+  breaker();
+  BufferNewline(b);
+  expected = "Hello, World\n";
+  for (int i = 0; i <= strlen(expected); ++i) {
+    assert(b->buf[i] == expected[i]);
+  }
+  //printf(b->buf);
+  freeValue(strValue);
+  freeBuffer(b);
+
   return true;
 }
+
+
 
 int main(int argc, char **argv) {
 
@@ -322,6 +383,7 @@ int main(int argc, char **argv) {
       makeValueExpr(make_ui64Value(10)),
       makeValueExpr(make_ui64Value(1))));
 
+  //Expr **call_args = malloc(2 * sizeof E)
   
 
   // BufferWriteChar(output, 'i');
@@ -340,9 +402,9 @@ int main(int argc, char **argv) {
 
   breaker();
 
-  for (int i = 0; i < 10000; ++i) {
-    BufferWriteString(output, "1;\n");
-  }
+  // for (int i = 0; i < 10000; ++i) {
+  //   BufferWriteString(output, "1;\n");
+  // }
 
   evalValue(output, value1);
   BufferWriteChar(output, ';');
@@ -361,6 +423,7 @@ int main(int argc, char **argv) {
   BufferNewline(output);
 
   BufferWriteChar(output, '}');
+  BufferNewline(output);
 
 
   //printf("free expr1\n");
