@@ -332,6 +332,21 @@ void evalBinAddExpr(Buffer *buffer, Expr *expr) {
   evalExpr(buffer, ((Expr **)expr->subexprs)[1]);
 }
 
+void evalCallExpr(Buffer *buffer, Expr *expr) {
+  char *functionName = ((char **)expr->subexprs)[0];
+  Expr *args = ((Expr **)expr->subexprs)[1];
+  BufferWriteString(buffer, functionName);
+  BufferWriteChar(buffer, '(');
+  for (int i = 0; i < args->subexpr_count; ++i) {
+    evalExpr(buffer, ((Expr **)args->subexprs)[i]);
+    if (i + 1 < args->subexpr_count) {
+      BufferWriteChar(buffer, ',');
+      BufferWriteChar(buffer, ' ');
+    }
+  }
+  BufferWriteChar(buffer, ')');
+}
+
 void evalExpr(Buffer *buffer, Expr *expr) {
   switch(expr->etype) {
     case ValueExpr:
@@ -339,6 +354,9 @@ void evalExpr(Buffer *buffer, Expr *expr) {
       return;
     case BinAddExpr:
       evalBinAddExpr(buffer, expr);
+      return;
+    case CallExpr:
+      evalCallExpr(buffer, expr);
       return;
     default:
       assert(0 && "Error: Expr has unknown etype");
@@ -412,15 +430,13 @@ int main(int argc, char **argv) {
 
   //breaker();
 
-  Expr *expr4 = makeValueExpr(makeStringValue("%d\n"));  
+  Expr *expr4 = makeValueExpr(makeStringValue("\"%d\\n\""));  
   Expr *expr5 = makeValueExpr(make_ui64Value(111));
   Expr **call_args = malloc(2 * sizeof (Expr *));
   call_args[0] = expr4;
   call_args[1] = expr5;
   Expr *expr6 = makeCallExpr("printf", makeExprListExpr(2, call_args));
 
-  // TODO:
-  // IMPLEMENT EVALCALLEXPR
 
 
 
@@ -464,6 +480,10 @@ int main(int argc, char **argv) {
   BufferWriteChar(output, ';');
   BufferNewline(output);
 
+  evalExpr(output, expr6);
+  BufferWriteChar(output, ';');
+  BufferNewline(output);
+
   BufferWriteChar(output, '}');
   BufferNewline(output);
 
@@ -480,12 +500,11 @@ int main(int argc, char **argv) {
   freeExpr(expr3);
   //printf("\n");
 
-  breaker();
   freeExpr(expr6);
 
-  //breaker();
-
-  printf(output->buf);
+  //printf(output->buf);
+  puts(output->buf);    //I can't use printf to display output because printf
+  // tries to format the %d inside the string but I want raw output
 
   freeBuffer(output);
   
