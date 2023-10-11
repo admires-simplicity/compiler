@@ -20,6 +20,7 @@ typedef struct {
 typedef enum {
   ValueExpr,
   BinAddExpr,
+  ExprListExpr,
   CallExpr,
 } ExprType;
 
@@ -143,6 +144,10 @@ Expr *makeBinAddExpr(Expr *subexpr0, Expr *subexpr1) {
   return makeExpr(BinAddExpr, 2, subexprs);
 }
 
+Expr *makeExprListExpr(size_t exprs, Expr **exprPtrs) {
+  return makeExpr(ExprListExpr, exprs, exprPtrs);
+}
+
 // Expr *makeCallExpr(char *name, Expr **args) {
 //   Expr **subexprs = malloc(sizeof (char *) + sizeof (Expr **));
 //   subexprs[0] = (void *)name; // feels like I am kind of cheating the type system.
@@ -150,6 +155,14 @@ Expr *makeBinAddExpr(Expr *subexpr0, Expr *subexpr1) {
 //   return makeExpr(CallExpr, 2, subexprs);
 // }
 
+Expr *makeCallExpr(char *name, Expr *exprListExprPtr) {
+  // I'm not sure if I should really be passing a char * here or a Value...
+  assert(exprListExprPtr->etype == ExprListExpr);
+  Expr **subexprs = malloc(sizeof (char *) + sizeof (Expr **));
+  subexprs[0] = (void *)name;
+  subexprs[1] = exprListExprPtr;
+  return makeExpr(CallExpr, 2, subexprs);
+}
 
 /*
  * recursively free expression, subexprs, and values in subexprs.
@@ -171,8 +184,18 @@ void freeExpr(Expr *exprPtr) {
     //printf("freeing subexpression dynamic array\n");
     free(exprPtr->subexprs);
     break;
+  case ExprListExpr:
+    for (int i = 0; i < exprPtr->subexpr_count; ++i) {
+      freeExpr(((Expr **)exprPtr->subexprs)[i]);
+    }
+    free(exprPtr->subexprs);
+    break;
+  case CallExpr:
+    freeExpr(((Expr **)exprPtr->subexprs)[1]);
+    free(exprPtr->subexprs);
+    break;
   default:
-    //printf("ERROR: tried to free unknown Expr type\n");
+    printf("ERROR: tried to free unknown Expr type\n");
     exit(1);
   }
   
@@ -271,7 +294,6 @@ void eval_ui64Value(Buffer *buffer, Value *value) {
   BufferWriteString(buffer, tmp->buf);
 
   freeBuffer(tmp);
-
 }
 
 void evalStringValue (Buffer *buffer, Value *value) {
@@ -339,7 +361,7 @@ bool run_tests() {
   Value *strValue = makeStringValue("Hello, World");
   b = makeBuffer(0);
   evalValue(b, strValue);
-  breaker();
+
   BufferNewline(b);
   expected = "Hello, World\n";
   for (int i = 0; i <= strlen(expected); ++i) {
@@ -383,8 +405,30 @@ int main(int argc, char **argv) {
       makeValueExpr(make_ui64Value(10)),
       makeValueExpr(make_ui64Value(1))));
 
-  //Expr **call_args = malloc(2 * sizeof E)
-  
+  // Expr **call_args = malloc(2 * sizeof (Expr *));
+  // call_args[0] = makeValueExpr(makeStringValue("%d\n"));
+  // call_args[1] = makeValueExpr(make_ui64Value(111));
+  // Expr *expr4 = makeCallExpr("printf", call_args);
+
+  //breaker();
+
+  Expr *expr4 = makeValueExpr(makeStringValue("%d\n"));  
+  Expr *expr5 = makeValueExpr(make_ui64Value(111));
+  Expr **call_args = malloc(2 * sizeof (Expr *));
+  call_args[0] = expr4;
+  call_args[1] = expr5;
+  Expr *expr6 = makeCallExpr("printf", makeExprListExpr(2, call_args));
+
+  // TODO:
+  // IMPLEMENT EVALCALLEXPR
+
+
+
+
+  // Expr *expr7 = makeValueExpr(make_ui64Value(9));
+  // Expr *expr8 = makeValueExpr(make_ui64Value(10));
+  // Expr **call_args = malloc(sizeof expr7 + sizeof expr8);
+  //call_args = 
 
   // BufferWriteChar(output, 'i');
   // BufferWriteChar(output, 'n');
@@ -399,8 +443,6 @@ int main(int argc, char **argv) {
   // BufferWriteChar(output, '{');
   // BufferNewline(output);
   BufferWriteString(output, "int main() {\n");
-
-  breaker();
 
   // for (int i = 0; i < 10000; ++i) {
   //   BufferWriteString(output, "1;\n");
@@ -437,6 +479,9 @@ int main(int argc, char **argv) {
   //printf("free expr3\n");
   freeExpr(expr3);
   //printf("\n");
+
+  breaker();
+  freeExpr(expr6);
 
   //breaker();
 
