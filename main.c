@@ -489,36 +489,17 @@ void evalMainScope(Buffer *buffer, Scope *scope) {
 
 int main(int argc, char **argv) {
 
-  //assert(run_tests());
+  assert(run_tests());
 
   Buffer *output = makeBuffer(1024);
-  // BufferWriteChar(output, '1');
-  // BufferWriteChar(output, '2');
-  // BufferWriteChar(output, '3');
-  // BufferWriteChar(output, '\n');
-  // BufferWriteChar(output, '4');
-  // BufferWriteChar(output, '5');
-  // BufferWriteChar(output, '6');
-  // BufferWriteChar(output, '\n');
 
   Value *value1 = make_ui64Value(12345);
-  //Expr *expr1 = makeExpr(ValueExpr, 1, value1);
   Expr *statement1 = makeExpr(StatementExpr, 1, makeValueExpr(value1));
 
-  // Expr *expr2 = makeBinAddExpr(
-  //   makeValueExpr(make_ui64Value(700)),
-  //   makeValueExpr(make_ui64Value(77)));
   Expr *statement2 = makeExpr(StatementExpr, 1, makeBinAddExpr(
     makeValueExpr(make_ui64Value(700)),
     makeValueExpr(make_ui64Value(77))));
 
-  // Expr *expr3 = makeBinAddExpr(
-  //   makeBinAddExpr(
-  //     makeValueExpr(make_ui64Value(1000)),
-  //     makeValueExpr(make_ui64Value(100))),
-  //   makeBinAddExpr(
-  //     makeValueExpr(make_ui64Value(10)),
-  //     makeValueExpr(make_ui64Value(1))));
   Expr *statement3 = makeExpr(StatementExpr, 1, makeBinAddExpr(
     makeBinAddExpr(
       makeValueExpr(make_ui64Value(1000)),
@@ -527,102 +508,28 @@ int main(int argc, char **argv) {
       makeValueExpr(make_ui64Value(10)),
       makeValueExpr(make_ui64Value(1)))));
 
-  // Expr **call_args = malloc(2 * sizeof (Expr *));
-  // call_args[0] = makeValueExpr(makeStringValue("%d\n"));
-  // call_args[1] = makeValueExpr(make_ui64Value(111));
-  // Expr *expr4 = makeCallExpr("printf", call_args);
-
-  //breaker();
 
   Expr *expr4 = makeValueExpr(makeStringValue("\"%d\\n\""));  
   Expr *expr5 = makeValueExpr(make_ui64Value(111));
   Expr **call_args = malloc(2 * sizeof (Expr *));
   call_args[0] = expr4;
   call_args[1] = expr5;
-  //Expr *expr6 = makeCallExpr("printf", makeExprListExpr(2, call_args));
   Expr *statement4 = makeExpr(StatementExpr, 1,
     makeCallExpr("printf", makeExprListExpr(2, call_args)));
 
 
   Scope *mainScope = makeScope(128);
-  // scopeAddExpr(mainScope, expr1);
-  // scopeAddExpr(mainScope, expr2);
-  // scopeAddExpr(mainScope, expr3);
-  // scopeAddExpr(mainScope, expr6);
   scopeAddExpr(mainScope, statement1);
   scopeAddExpr(mainScope, statement2);
   scopeAddExpr(mainScope, statement3);
   scopeAddExpr(mainScope, statement4);
 
 
-
-
-  // Expr *expr7 = makeValueExpr(make_ui64Value(9));
-  // Expr *expr8 = makeValueExpr(make_ui64Value(10));
-  // Expr **call_args = malloc(sizeof expr7 + sizeof expr8);
-  //call_args = 
-
-  // BufferWriteChar(output, 'i');
-  // BufferWriteChar(output, 'n');
-  // BufferWriteChar(output, 't');
-  // BufferWriteChar(output, ' ');
-  // BufferWriteChar(output, 'm');
-  // BufferWriteChar(output, 'a');
-  // BufferWriteChar(output, 'i');
-  // BufferWriteChar(output, 'n');
-  // BufferWriteChar(output, '(');
-  // BufferWriteChar(output, ')');
-  // BufferWriteChar(output, '{');
-  // BufferNewline(output);
-  // BufferWriteString(output, "int main() {\n");
-
-  // // for (int i = 0; i < 10000; ++i) {
-  // //   BufferWriteString(output, "1;\n");
-  // // }
-
-  // evalValue(output, value1);
-  // BufferWriteChar(output, ';');
-  // BufferNewline(output);
-
-  // evalValueExpr(output, expr1);
-  // BufferWriteChar(output, ';');
-  // BufferNewline(output);
-
-  // evalBinAddExpr(output, expr2);
-  // BufferWriteChar(output, ';');
-  // BufferNewline(output);
-
-  // evalExpr(output, expr3);
-  // BufferWriteChar(output, ';');
-  // BufferNewline(output);
-
-  // evalExpr(output, expr6);
-  // BufferWriteChar(output, ';');
-  // BufferNewline(output);
-
-  // BufferWriteChar(output, '}');
-  // BufferNewline(output);
-
   evalMainScope(output, mainScope);
-
-  //printf("free expr1\n");
-  //freeExpr(expr1);
-  //printf("\n");
-
-  //printf("free expr2\n");
-  //freeExpr(expr2);
-  //printf("\n");
-
-  //printf("free expr3\n");
-  //freeExpr(expr3);
-  //printf("\n");
-
-  //freeExpr(expr6);
 
   printf("scope expr count %d\n", mainScope->expr_count);
   freeScope(mainScope);
 
-  //printf(output->buf);
   puts(output->buf);    //I can't use printf to display output because printf
   // tries to format the %d inside the string but I want raw output
 
