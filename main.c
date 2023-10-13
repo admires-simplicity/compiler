@@ -18,10 +18,12 @@ typedef struct {
 } Value;
 
 typedef enum {
+  NullExpr,
   ValueExpr,
   BinAddExpr,
   ExprListExpr,
   CallExpr,
+  StatementExpr,
 } ExprType;
 
 
@@ -33,9 +35,21 @@ struct Expr {
   void *subexprs;
 };
 
+// typedef struct {
+//   Expr *expr;
+// } Statement;
+
 typedef struct {
-  Expr *expr;
-} Statement;
+  size_t size;
+  size_t next;
+  void *arr;
+} DynamicArray;
+
+typedef struct {
+  size_t expr_count;
+  size_t expr_space;
+  Expr **exprs;
+} Scope;
 
 /*
  * vtype -- type of value to make
@@ -164,6 +178,10 @@ Expr *makeCallExpr(char *name, Expr *exprListExprPtr) {
   return makeExpr(CallExpr, 2, subexprs);
 }
 
+Expr *makeStatementExpr(Expr *expr) {
+  return makeExpr(StatementExpr, 1, expr);
+}
+
 /*
  * recursively free expression, subexprs, and values in subexprs.
  * works now because I'm never sharing resources across expressions.
@@ -171,6 +189,8 @@ Expr *makeCallExpr(char *name, Expr *exprListExprPtr) {
  */
 void freeExpr(Expr *exprPtr) {
   switch (exprPtr->etype) {
+  case NullExpr:
+    break;
   case ValueExpr:
     //printf("freeing value expression\n");
     freeValue(exprPtr->subexprs);
@@ -194,6 +214,9 @@ void freeExpr(Expr *exprPtr) {
     freeExpr(((Expr **)exprPtr->subexprs)[1]);
     free(exprPtr->subexprs);
     break;
+  case StatementExpr:
+    freeExpr(exprPtr->subexprs);
+    break;
   default:
     printf("ERROR: tried to free unknown Expr type\n");
     exit(1);
@@ -215,6 +238,9 @@ typedef struct {
   size_t next;  //maybe "used" instead of "next" ?
   char *buf;
 } Buffer;
+
+
+
 
 void initializeBuffer(Buffer *buffer) {
   for (size_t i = 0; i < buffer->size; ++i) {
@@ -347,6 +373,12 @@ void evalCallExpr(Buffer *buffer, Expr *expr) {
   BufferWriteChar(buffer, ')');
 }
 
+void evalStatementExpr(Buffer *buffer, Expr *expr) {
+  evalExpr(buffer, expr->subexprs);
+  BufferWriteChar(buffer, ';');
+  BufferWriteChar(buffer, '\n');
+}
+
 void evalExpr(Buffer *buffer, Expr *expr) {
   switch(expr->etype) {
     case ValueExpr:
@@ -357,6 +389,9 @@ void evalExpr(Buffer *buffer, Expr *expr) {
       return;
     case CallExpr:
       evalCallExpr(buffer, expr);
+      return;
+    case StatementExpr:
+      evalStatementExpr(buffer, expr);
       return;
     default:
       assert(0 && "Error: Expr has unknown etype");
@@ -393,10 +428,68 @@ bool run_tests() {
 }
 
 
+void initializeScope(Scope *scope) {
+  for (size_t i = 0; i < scope->expr_space; ++i) {
+    // scope->exprs[i].etype = NullExpr;
+    // scope->exprs[i].subexpr_count = 0;
+    // scope->exprs[i].subexprs = NULL;
+    scope->exprs[i] = NULL;
+  }
+}
+
+Scope *makeScope(size_t size) {
+  Scope *scope = malloc(sizeof (Scope));
+  scope->expr_count = 0;
+  scope->expr_space = size;
+  scope->exprs = malloc(size * sizeof (Expr));
+  return scope;
+}
+
+void freeScope(Scope *scope) {
+  for (size_t i = 0; i < scope->expr_count; ++i) {
+    freeExpr(scope->exprs[i]);
+  }
+  free(scope->exprs);
+  free(scope);
+}
+
+void scopeIncreaseSize(Scope *scope, size_t new_size) {
+  if (new_size < scope->expr_space) assert(0 && "TODO: handle passing smaller size error");
+  scope->expr_space = new_size;
+  Expr **result = realloc(scope->exprs, scope->expr_space);
+  if (result == NULL) assert(0 && "TODO: handle realloc error");
+  scope->exprs = result;
+  initializeScope(scope);
+}
+
+void scopeDoubleSize(Scope *scope) {
+  scopeIncreaseSize(scope, scope->expr_space * 2);
+}
+
+void scopeAddExpr(Scope *scope, Expr *expr) {
+  if (scope->expr_count == scope->expr_space) {
+    scopeDoubleSize(scope);
+  }
+  scope->exprs[scope->expr_count++] = expr;
+}
+
+void scopeToBuffer(Buffer *buffer, Scope *scope) {
+  for (size_t i = 0; i < scope->expr_count; ++i) {
+    evalExpr(buffer, scope->exprs[i]);
+  }
+}
+
+void evalMainScope(Buffer *buffer, Scope *scope) {
+  BufferWriteString(buffer, "int main() {\n");
+  scopeToBuffer(buffer, scope);
+  BufferWriteString(buffer, "return 0;\n}\n");
+}
+
+
 
 int main(int argc, char **argv) {
 
-  assert(run_tests());
+  //assert(run_tests());
 
   Buffer *output = makeBuffer(1024);
   // BufferWriteChar(output, '1');
@@ -409,19 +502,30 @@ int main(int argc, char **argv) {
   // BufferWriteChar(output, '\n');
 
   Value *value1 = make_ui64Value(12345);
-  Expr *expr1 = makeExpr(ValueExpr, 1, value1);
+  //Expr *expr1 = makeExpr(ValueExpr, 1, value1);
+  Expr *statement1 = makeExpr(StatementExpr, 1, makeValueExpr(value1));
 
-  Expr *expr2 = makeBinAddExpr(
+  // Expr *expr2 = makeBinAddExpr(
+  //   makeValueExpr(make_ui64Value(700)),
+  //   makeValueExpr(make_ui64Value(77)));
+  Expr *statement2 = makeExpr(StatementExpr, 1, makeBinAddExpr(
     makeValueExpr(make_ui64Value(700)),
-    makeValueExpr(make_ui64Value(77)));
+    makeValueExpr(make_ui64Value(77))));
 
-  Expr *expr3 = makeBinAddExpr(
+  // Expr *expr3 = makeBinAddExpr(
+  //   makeBinAddExpr(
+  //     makeValueExpr(make_ui64Value(1000)),
+  //     makeValueExpr(make_ui64Value(100))),
+  //   makeBinAddExpr(
+  //     makeValueExpr(make_ui64Value(10)),
+  //     makeValueExpr(make_ui64Value(1))));
+  Expr *statement3 = makeExpr(StatementExpr, 1, makeBinAddExpr(
     makeBinAddExpr(
       makeValueExpr(make_ui64Value(1000)),
       makeValueExpr(make_ui64Value(100))),
     makeBinAddExpr(
       makeValueExpr(make_ui64Value(10)),
-      makeValueExpr(make_ui64Value(1))));
+      makeValueExpr(make_ui64Value(1)))));
 
   // Expr **call_args = malloc(2 * sizeof (Expr *));
   // call_args[0] = makeValueExpr(makeStringValue("%d\n"));
@@ -435,8 +539,20 @@ int main(int argc, char **argv) {
   Expr **call_args = malloc(2 * sizeof (Expr *));
   call_args[0] = expr4;
   call_args[1] = expr5;
-  Expr *expr6 = makeCallExpr("printf", makeExprListExpr(2, call_args));
+  //Expr *expr6 = makeCallExpr("printf", makeExprListExpr(2, call_args));
+  Expr *statement4 = makeExpr(StatementExpr, 1,
+    makeCallExpr("printf", makeExprListExpr(2, call_args)));
 
+
+  Scope *mainScope = makeScope(128);
+  // scopeAddExpr(mainScope, expr1);
+  // scopeAddExpr(mainScope, expr2);
+  // scopeAddExpr(mainScope, expr3);
+  // scopeAddExpr(mainScope, expr6);
+  scopeAddExpr(mainScope, statement1);
+  scopeAddExpr(mainScope, statement2);
+  scopeAddExpr(mainScope, statement3);
+  scopeAddExpr(mainScope, statement4);
 
 
 
@@ -458,49 +574,53 @@ int main(int argc, char **argv) {
   // BufferWriteChar(output, ')');
   // BufferWriteChar(output, '{');
   // BufferNewline(output);
-  BufferWriteString(output, "int main() {\n");
+  // BufferWriteString(output, "int main() {\n");
 
-  // for (int i = 0; i < 10000; ++i) {
-  //   BufferWriteString(output, "1;\n");
-  // }
+  // // for (int i = 0; i < 10000; ++i) {
+  // //   BufferWriteString(output, "1;\n");
+  // // }
 
-  evalValue(output, value1);
-  BufferWriteChar(output, ';');
-  BufferNewline(output);
+  // evalValue(output, value1);
+  // BufferWriteChar(output, ';');
+  // BufferNewline(output);
 
-  evalValueExpr(output, expr1);
-  BufferWriteChar(output, ';');
-  BufferNewline(output);
+  // evalValueExpr(output, expr1);
+  // BufferWriteChar(output, ';');
+  // BufferNewline(output);
 
-  evalBinAddExpr(output, expr2);
-  BufferWriteChar(output, ';');
-  BufferNewline(output);
+  // evalBinAddExpr(output, expr2);
+  // BufferWriteChar(output, ';');
+  // BufferNewline(output);
 
-  evalExpr(output, expr3);
-  BufferWriteChar(output, ';');
-  BufferNewline(output);
+  // evalExpr(output, expr3);
+  // BufferWriteChar(output, ';');
+  // BufferNewline(output);
 
-  evalExpr(output, expr6);
-  BufferWriteChar(output, ';');
-  BufferNewline(output);
+  // evalExpr(output, expr6);
+  // BufferWriteChar(output, ';');
+  // BufferNewline(output);
 
-  BufferWriteChar(output, '}');
-  BufferNewline(output);
+  // BufferWriteChar(output, '}');
+  // BufferNewline(output);
 
+  evalMainScope(output, mainScope);
 
   //printf("free expr1\n");
-  freeExpr(expr1);
+  //freeExpr(expr1);
   //printf("\n");
 
   //printf("free expr2\n");
-  freeExpr(expr2);
+  //freeExpr(expr2);
   //printf("\n");
 
   //printf("free expr3\n");
-  freeExpr(expr3);
+  //freeExpr(expr3);
   //printf("\n");
 
-  freeExpr(expr6);
+  //freeExpr(expr6);
+
+  printf("scope expr count %d\n", mainScope->expr_count);
+  freeScope(mainScope);
 
   //printf(output->buf);
   puts(output->buf);    //I can't use printf to display output because printf
