@@ -24,6 +24,7 @@ typedef enum {
   ExprListExpr,
   CallExpr,
   StatementExpr,
+  BlockExpr,
 } ExprType;
 
 
@@ -50,6 +51,19 @@ typedef struct {
   size_t expr_space;
   Expr **exprs;
 } Scope;
+
+typedef struct {
+  size_t size;
+  size_t next;  //maybe "used" instead of "next" ?
+  char *buf;
+} Buffer;
+
+
+void scopeToBuffer(Buffer *buffer, Scope *scope);
+
+void freeScope(Scope *scope);
+
+
 
 /*
  * vtype -- type of value to make
@@ -182,6 +196,10 @@ Expr *makeStatementExpr(Expr *expr) {
   return makeExpr(StatementExpr, 1, expr);
 }
 
+Expr *makeBlockExpr(Scope *scope) {
+  return makeExpr(BlockExpr, 1, scope);
+}
+
 /*
  * recursively free expression, subexprs, and values in subexprs.
  * works now because I'm never sharing resources across expressions.
@@ -217,6 +235,9 @@ void freeExpr(Expr *exprPtr) {
   case StatementExpr:
     freeExpr(exprPtr->subexprs);
     break;
+  case BlockExpr:
+    freeScope(exprPtr->subexprs);
+    break;
   default:
     printf("ERROR: tried to free unknown Expr type\n");
     exit(1);
@@ -233,11 +254,6 @@ void freeExpr(Expr *exprPtr) {
 
 void breaker() { }
 
-typedef struct {
-  size_t size;
-  size_t next;  //maybe "used" instead of "next" ?
-  char *buf;
-} Buffer;
 
 
 
@@ -379,6 +395,12 @@ void evalStatementExpr(Buffer *buffer, Expr *expr) {
   BufferWriteChar(buffer, '\n');
 }
 
+void evalBlockExpr(Buffer *buffer, Expr *expr) {
+  BufferWriteString(buffer, "{\n");
+  scopeToBuffer(buffer, expr->subexprs);
+  BufferWriteString(buffer, "}\n");
+}
+
 void evalExpr(Buffer *buffer, Expr *expr) {
   switch(expr->etype) {
     case ValueExpr:
@@ -392,6 +414,9 @@ void evalExpr(Buffer *buffer, Expr *expr) {
       return;
     case StatementExpr:
       evalStatementExpr(buffer, expr);
+      return;
+    case BlockExpr:
+      evalBlockExpr(buffer, expr);
       return;
     default:
       assert(0 && "Error: Expr has unknown etype");
@@ -523,6 +548,21 @@ int main(int argc, char **argv) {
   scopeAddExpr(mainScope, statement2);
   scopeAddExpr(mainScope, statement3);
   scopeAddExpr(mainScope, statement4);
+
+
+  Expr *statement5 = makeExpr(StatementExpr, 1, makeBinAddExpr(
+    makeValueExpr(make_ui64Value(11)),
+    makeValueExpr(make_ui64Value(22))));
+  Expr *statement6 = makeExpr(StatementExpr, 1, makeBinAddExpr(
+    makeValueExpr(make_ui64Value(33)),
+    makeValueExpr(make_ui64Value(44))));
+  Scope *scope1 = makeScope(128);
+  scopeAddExpr(scope1, statement5);
+  scopeAddExpr(scope1, statement6);
+  Expr *expr6 = makeExpr(BlockExpr, 1, scope1);
+  scopeAddExpr(mainScope, expr6);
+  
+
 
 
   evalMainScope(output, mainScope);
