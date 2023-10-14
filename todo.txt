@@ -1,12 +1,15 @@
-writing "Buffer *buffer" is getting annoying, so I should just make a global
-"output" buffer... maybe
-
-add BufferWriteNewline function
-
 refactor all exprs use multiple arguments to just use ExprListExpr as subexprs
 to drastically simplify freeExpr and probably evalExpr
 
 refactor exprs making and freeing and evaluating into separate files (?)
+
+I'm unsure about how identifier should be implemented
+  should it be an Expr or a Value?
+  should it just be a lexeme? should it have a value?
+    I think since I'm just writing a compiler I shouldn't store the value *in*
+    the lexeme. But maybe I should still store an address or something. Maybe 
+    if I make a compiler to assembly I should add an address, but for now, since
+    I'm just compiling to C, C will handle that (?)
 
 implement a more rigorous test suite. when I refactor things into separate files,
 I can make a test file/program which is entirely separated from main.

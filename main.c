@@ -30,6 +30,7 @@ typedef enum {
   FunctionDeclExpr,
   TypeExpr,
   VariableDeclExpr,
+  IdentifierExpr,
 } ExprType;
 
 typedef struct Expr Expr;
@@ -232,6 +233,10 @@ Expr *makeVariableDeclExpr(Expr *type, char *name) {
   return makeExpr(VariableDeclExpr, 2, subexprs);
 }
 
+Expr *makeIdentifierExpr(char *lexeme) {
+  return makeExpr(IdentifierExpr, 1, lexeme);
+}
+
 /*
  * recursively free expression, subexprs, and values in subexprs.
  * works now because I'm never sharing resources across expressions.
@@ -283,6 +288,13 @@ void freeExpr(Expr *exprPtr) {
   case VariableDeclExpr:
     freeExpr(((Expr **)exprPtr->subexprs)[0]);
     free(exprPtr->subexprs);
+    break;
+  case IdentifierExpr:
+    // do nothing, for now because I'm storing identifier by lexeme
+    // right now the only lexemes I'm using source code level strings
+    // which are handled by main somehow
+    // and later I'll just store them by position in a source file
+    // so I should never have to deallocate them... i think.
     break;
   default:
     printf("ERROR: tried to free unknown Expr type\n");
@@ -489,6 +501,10 @@ void evalVariableDeclExpr(Buffer *buffer, Expr *expr) {
   BufferWriteString(buffer, name);
 }
 
+void evalIdentifierExpr(Buffer *buffer, Expr *expr) {
+  BufferWriteString(buffer, (char *)expr->subexprs); // will this work ??
+}
+
 void evalExpr(Buffer *buffer, Expr *expr) {
   switch(expr->etype) {
     case ValueExpr:
@@ -514,6 +530,9 @@ void evalExpr(Buffer *buffer, Expr *expr) {
       return;
     case VariableDeclExpr:
       evalVariableDeclExpr(buffer, expr);
+      return;
+    case IdentifierExpr:
+      evalIdentifierExpr(buffer, expr);
       return;
     default:
       assert(0 && "Error: Expr has unknown etype");
@@ -700,6 +719,45 @@ int main(int argc, char **argv) {
   freeExpr(functionDecl);
   puts(output2->buf);
   freeBuffer(output2);
+
+  Buffer *output3 = makeBuffer(1024);
+
+  Expr *idExpr = makeIdentifierExpr("x");
+  Expr *stmtExpr = makeStatementExpr(idExpr);
+  Expr *body2 = makeExpr(BlockExpr, 1, makeScope(128));
+  scopeAddExpr(body2->subexprs, stmtExpr);
+  evalBlockExpr(output3, body2);
+  freeExpr(body2);
+  puts(output3->buf);
+  freeBuffer(output3);
+
+
+  {
+    Buffer *output = makeBuffer(1024);
+    Expr *retType = makeTypeExpr(ui64ValueType, 0);
+    Expr *arg1Type = makeTypeExpr(ui64ValueType, 0);
+    Expr *arg2Type = makeTypeExpr(ui64ValueType, 0);
+    Expr *arg1 = makeVariableDeclExpr(arg1Type, "x");
+    Expr *arg2 = makeVariableDeclExpr(arg2Type, "y");
+    Expr **argArray = malloc(2 * sizeof (Expr *));
+    argArray[0] = arg1;
+    argArray[1] = arg2;
+    Expr *args = makeExpr(ExprListExpr, 2, argArray);
+    Scope *bodyScope = makeScope(128);
+    Expr *stmt1 = makeStatementExpr(
+      makeBinAddExpr(
+        makeIdentifierExpr("x"), 
+        makeIdentifierExpr("y")));
+    scopeAddExpr(bodyScope, stmt1);
+    // TODO: implement return statement
+    Expr *body = makeExpr(BlockExpr, 1, bodyScope);
+    Expr *functionDecl = makeFunctionDeclExpr("add", retType, args, body);
+    evalFunctionDeclExpr(output, functionDecl);
+    freeExpr(functionDecl);
+    puts(output->buf);
+    freeBuffer(output);
+  }
+  
   
   return 0;
 }
