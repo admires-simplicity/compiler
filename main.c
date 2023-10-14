@@ -27,12 +27,15 @@ typedef enum {
   CallExpr,
   StatementExpr,
   BlockExpr,
-  FunctionDeclExpr,
+  FunctionDeclExpr, // at some point I will probably want to split this into FunctionDeclExpr and FunctionDefExpr
   TypeExpr,
   VariableDeclExpr,
   IdentifierExpr,
   GroupingExpr,
   ReturnExpr,
+  EqEqExpr, // x == y
+  ConditionalExpr,
+  AssignmentExpr,
 } ExprType;
 
 typedef struct Expr Expr;
@@ -71,6 +74,9 @@ void scopeToBuffer(Buffer *buffer, Scope *scope);
 void freeScope(Scope *scope);
 
 void evalTypeExpr(Buffer *buffer, Expr *expr);
+
+void scopeAddExpr(Scope *scope, Expr *expr);
+
 
 
 
@@ -246,6 +252,38 @@ Expr *makeGroupingExpr(Expr *expr) {
 Expr *makeReturnExpr(Expr *expr) {
   return makeExpr(ReturnExpr, 1, expr);
 }
+Expr *makeEqEqExpr(Expr *expr0, Expr *expr1) {
+  Expr **subexprs = malloc(2 * sizeof (Expr *));
+  subexprs[0] = makeGroupingExpr(expr0);
+  subexprs[1] = makeGroupingExpr(expr1);
+  return makeExpr(EqEqExpr, 2, subexprs);
+}
+
+Expr *makeConditionalExpr(Expr *conditionExpr, Expr *thenExpr, Expr *elseExpr) {
+  //assert(conditionExpr->etype == BooleanExpr);  //TODO: think about whether or not this would be a good idea ???
+  assert(thenExpr->etype == BlockExpr && elseExpr->etype == BlockExpr);
+  Expr **subexprs = malloc(3 * sizeof (Expr *));
+  subexprs[0] = conditionExpr;
+  subexprs[1] = thenExpr;
+  subexprs[2] = elseExpr;
+  return makeExpr(ConditionalExpr, 3, subexprs);
+}
+
+Expr *makeAssignmentExpr(Expr *left, Expr *right) {
+  Expr **subexprs = malloc(2 * sizeof (Expr *));
+  subexprs[0] = left;
+  subexprs[1] = right;
+  return makeExpr(AssignmentExpr, 2, subexprs);
+}
+
+
+
+
+void blockAddExpr(Expr *blockExpr, Expr *expr) {
+  assert(blockExpr->etype == BlockExpr);
+  Scope *scope = blockExpr->subexprs;
+  scopeAddExpr(scope, expr);
+}
 
 /*
  * recursively free expression, subexprs, and values in subexprs.
@@ -311,6 +349,22 @@ void freeExpr(Expr *exprPtr) {
     break;
   case ReturnExpr:
     freeExpr(exprPtr->subexprs);
+    break;
+  case EqEqExpr:
+    freeExpr(((Expr **)exprPtr->subexprs)[0]);
+    freeExpr(((Expr **)exprPtr->subexprs)[1]);
+    free(exprPtr->subexprs);
+    break;
+  case ConditionalExpr:
+    freeExpr(((Expr **)exprPtr->subexprs)[0]);
+    freeExpr(((Expr **)exprPtr->subexprs)[1]);
+    freeExpr(((Expr **)exprPtr->subexprs)[2]);
+    free(exprPtr->subexprs);
+    break;
+  case AssignmentExpr:
+    freeExpr(((Expr **)exprPtr->subexprs)[0]);
+    freeExpr(((Expr **)exprPtr->subexprs)[1]);
+    free(exprPtr->subexprs);
     break;
   default:
     printf("ERROR: tried to free unknown Expr type %d\n", exprPtr->etype);
@@ -534,6 +588,27 @@ void evalReturnExpr(Buffer *buffer, Expr *expr) {
   BufferWriteChar(buffer, '\n');
 }
 
+void evalEqEqExpr(Buffer *buffer, Expr *expr) {
+  evalExpr(buffer, ((Expr **)expr->subexprs)[0]);
+  BufferWriteString(buffer, " == ");
+  evalExpr(buffer, ((Expr **)expr->subexprs)[1]);
+}
+
+void evalConditionalExpr(Buffer *buffer, Expr *expr) {
+  BufferWriteString(buffer, "if (");
+  evalExpr(buffer, ((Expr **)expr->subexprs)[0]);
+  BufferWriteString(buffer, ")\n");
+  evalExpr(buffer, ((Expr **)expr->subexprs)[1]);
+  BufferWriteString(buffer, "else\n");
+  evalExpr(buffer, ((Expr **)expr->subexprs)[2]);
+}
+
+void evalAssignmentExpr(Buffer *buffer, Expr *expr) {
+  evalExpr(buffer, ((Expr **)expr->subexprs)[0]);
+  BufferWriteString(buffer, " = ");
+  evalExpr(buffer, ((Expr **)expr->subexprs)[1]);
+}
+
 void evalExpr(Buffer *buffer, Expr *expr) {
   switch(expr->etype) {
     case ValueExpr:
@@ -568,6 +643,15 @@ void evalExpr(Buffer *buffer, Expr *expr) {
       return;
     case ReturnExpr:
       evalReturnExpr(buffer, expr);
+      return;
+    case EqEqExpr:
+      evalEqEqExpr(buffer, expr);
+      return;
+    case ConditionalExpr:
+      evalConditionalExpr(buffer, expr);
+      return;
+    case AssignmentExpr:
+      evalAssignmentExpr(buffer, expr);
       return;
     default:
       assert(0 && "Error: Expr has unknown etype");
@@ -718,8 +802,11 @@ int main(int argc, char **argv) {
 
   evalMainScope(output, mainScope);
 
-  printf("scope expr count %d\n", mainScope->expr_count);
+  //printf("scope expr count %d\n", mainScope->expr_count);
   freeScope(mainScope);
+
+  puts("#include <stdint.h>");
+  puts("#include<stdio.h>");
 
   puts(output->buf);    //I can't use printf to display output because printf
   // tries to format the %d inside the string but I want raw output
@@ -755,16 +842,16 @@ int main(int argc, char **argv) {
   puts(output2->buf);
   freeBuffer(output2);
 
-  Buffer *output3 = makeBuffer(1024);
+  // Buffer *output3 = makeBuffer(1024);
 
-  Expr *idExpr = makeIdentifierExpr("x");
-  Expr *stmtExpr = makeStatementExpr(idExpr);
-  Expr *body2 = makeExpr(BlockExpr, 1, makeScope(128));
-  scopeAddExpr(body2->subexprs, stmtExpr);
-  evalBlockExpr(output3, body2);
-  freeExpr(body2);
-  puts(output3->buf);
-  freeBuffer(output3);
+  // Expr *idExpr = makeIdentifierExpr("x");
+  // Expr *stmtExpr = makeStatementExpr(idExpr);
+  // Expr *body2 = makeExpr(BlockExpr, 1, makeScope(128));
+  // scopeAddExpr(body2->subexprs, stmtExpr);
+  // evalBlockExpr(output3, body2);
+  // freeExpr(body2);
+  // puts(output3->buf);
+  // freeBuffer(output3);
 
 
   {
@@ -807,13 +894,56 @@ int main(int argc, char **argv) {
 
     // TODO: implement return statement
     Expr *body = makeExpr(BlockExpr, 1, bodyScope);
-    Expr *functionDecl = makeFunctionDeclExpr("add", retType, args, body);
+    Expr *functionDecl = makeFunctionDeclExpr("add1", retType, args, body);
     evalFunctionDeclExpr(output, functionDecl);
     puts(output->buf);
     freeExpr(functionDecl);
     freeBuffer(output);
   }
+
+  {
+    Buffer *output = makeBuffer(1024);
+    Expr *EqEqExpr = makeEqEqExpr(
+      makeValueExpr(make_ui64Value(1)),
+      makeValueExpr(make_ui64Value(2)));
+    evalExpr(output, EqEqExpr);
+    puts(output->buf);
+    freeExpr(EqEqExpr);
+    freeBuffer(output);
+  }
+
+  {
+    Buffer *output = makeBuffer(1024);
+    Expr *block = makeExpr(BlockExpr, 1, makeScope(128));
+    
+    Expr *condExpr = makeConditionalExpr(
+      makeEqEqExpr(
+        makeValueExpr(make_ui64Value(1)),
+        makeValueExpr(make_ui64Value(2))),
+      makeExpr(BlockExpr, 1, makeScope(128)),
+      makeExpr(BlockExpr, 1, makeScope(128)));
+
+    blockAddExpr(block, condExpr);
+
+    evalExpr(output, block);
+    puts(output->buf);
+
+    freeExpr(block);
+    freeBuffer(output);
+  }
   
+  { 
+    Buffer *output = makeBuffer(1024);
+    Expr *assignmentExpr = makeAssignmentExpr(
+      makeIdentifierExpr("x"),
+      makeValueExpr(make_ui64Value(123)));
+    Expr *assignmentStatement = makeStatementExpr(assignmentExpr);
+
+    evalExpr(output, assignmentStatement);
+    puts(output->buf);
+    freeExpr(assignmentStatement);
+    freeBuffer(output);
+  }
   
   return 0;
 }

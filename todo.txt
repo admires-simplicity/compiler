@@ -15,3 +15,6 @@ implement a more rigorous test suite. when I refactor things into separate files
 I can make a test file/program which is entirely separated from main.
 
 implement parsing (lel)
+
+Maybe instead of repeating everything for every binary expression I should just
+  write a general makeBinExpr function...
