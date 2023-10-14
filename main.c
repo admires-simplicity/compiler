@@ -7,8 +7,10 @@
 #include <assert.h>
 
 typedef enum {
-  ui64Value,
-  StringValue,
+  cintValueType, // this is probably bad (??)
+  ui64ValueType,
+  StringValueType,
+  CustomValueType,
 } ValueType;
 
 typedef struct {
@@ -25,8 +27,10 @@ typedef enum {
   CallExpr,
   StatementExpr,
   BlockExpr,
+  FunctionDeclExpr,
+  TypeExpr,
+  VariableDeclExpr,
 } ExprType;
-
 
 typedef struct Expr Expr;
 
@@ -62,6 +66,9 @@ typedef struct {
 void scopeToBuffer(Buffer *buffer, Scope *scope);
 
 void freeScope(Scope *scope);
+
+void evalTypeExpr(Buffer *buffer, Expr *expr);
+
 
 
 
@@ -105,7 +112,7 @@ void make_ui64ValueAt(Value* valuePtr, uint64_t x) {
 }
 
 Value *make_ui64Value(uint64_t x) {
-  Value *valuePtr = makeValue(ui64Value, 1, NULL);
+  Value *valuePtr = makeValue(ui64ValueType, 1, NULL);
   make_ui64ValueAt(valuePtr, x);
   return valuePtr;
 }
@@ -119,7 +126,7 @@ Value *makeStringValue(char *str) {
   for (int i = 0; i < strlen(str); ++i) strOctabytesPtr[i] = str[i];
   strOctabytesPtr[strlen(str)] = '\0';
   Value *valuePtr = malloc(sizeof (Value));
-  valuePtr->vtype = StringValue;
+  valuePtr->vtype = StringValueType;
   valuePtr->size = strlen(str) + 1;
   valuePtr->octabytes = strOctabytesPtr;
   return valuePtr;
@@ -200,6 +207,31 @@ Expr *makeBlockExpr(Scope *scope) {
   return makeExpr(BlockExpr, 1, scope);
 }
 
+Expr *makeFunctionDeclExpr(char *name, Expr *type, Expr *args, Expr *body) {
+  assert(type->etype == TypeExpr && args->etype == ExprListExpr &&
+    body->etype == BlockExpr);
+  Expr **subexprs = malloc(sizeof (char *) + sizeof (Expr **) * 3);
+  subexprs[0] = (void *)name;
+  subexprs[1] = type;
+  subexprs[2] = args;
+  subexprs[3] = body;
+  return makeExpr(FunctionDeclExpr, 4, subexprs);
+}
+
+Expr *makeTypeExpr(ValueType vType, int64_t customTypeID) {
+  Expr **subexprs = malloc(2 * sizeof (void *));
+  subexprs[0] = (void *)vType;
+  subexprs[1] = (void *)customTypeID;
+  return makeExpr(TypeExpr, 2, subexprs);
+}
+
+Expr *makeVariableDeclExpr(Expr *type, char *name) {
+  Expr **subexprs = malloc(sizeof (Expr *) + sizeof (char *));
+  subexprs[0] = type;
+  subexprs[1] = (void *)name;
+  return makeExpr(VariableDeclExpr, 2, subexprs);
+}
+
 /*
  * recursively free expression, subexprs, and values in subexprs.
  * works now because I'm never sharing resources across expressions.
@@ -237,6 +269,20 @@ void freeExpr(Expr *exprPtr) {
     break;
   case BlockExpr:
     freeScope(exprPtr->subexprs);
+    break;
+  case FunctionDeclExpr:
+    //free(((char *)exprPtr->subexprs)[0]); // I will probably need this later
+    freeExpr(((Expr **)exprPtr->subexprs)[1]);
+    freeExpr(((Expr **)exprPtr->subexprs)[2]);
+    freeExpr(((Expr **)exprPtr->subexprs)[3]);
+    free(exprPtr->subexprs);
+    break;
+  case TypeExpr:
+    free(exprPtr->subexprs);
+    break;
+  case VariableDeclExpr:
+    freeExpr(((Expr **)exprPtr->subexprs)[0]);
+    free(exprPtr->subexprs);
     break;
   default:
     printf("ERROR: tried to free unknown Expr type\n");
@@ -318,7 +364,7 @@ void BufferNewline(Buffer *buffer) {
 }
 
 void eval_ui64Value(Buffer *buffer, Value *value) {
-  if (value->vtype != ui64Value || value->size != 1) {
+  if (value->vtype != ui64ValueType || value->size != 1) {
     assert(0 && "Unexpected value type");
   }
 
@@ -346,10 +392,10 @@ void evalStringValue (Buffer *buffer, Value *value) {
 
 void evalValue(Buffer *buffer, Value *value) {
   switch (value->vtype) {
-    case ui64Value:
+    case ui64ValueType:
       eval_ui64Value(buffer, value);
       break;
-    case StringValue:
+    case StringValueType:
       evalStringValue(buffer, value);
       break;
     default:
@@ -401,6 +447,48 @@ void evalBlockExpr(Buffer *buffer, Expr *expr) {
   BufferWriteString(buffer, "}\n");
 }
 
+void evalFunctionDeclExpr(Buffer *buffer, Expr *expr) {
+  char *name = ((char **)expr->subexprs)[0];
+  Expr *type = ((Expr **)expr->subexprs)[1];
+  Expr *args = ((Expr **)expr->subexprs)[2];
+  Expr *body = ((Expr **)expr->subexprs)[3];
+  evalTypeExpr(buffer, type);
+  BufferWriteString(buffer, name);
+  BufferWriteChar(buffer, '(');
+  for (int i = 0; i < args->subexpr_count; ++i) {
+    evalExpr(buffer, ((Expr **)args->subexprs)[i]);
+    if (i + 1 < args->subexpr_count) {
+      BufferWriteChar(buffer, ',');
+      BufferWriteChar(buffer, ' ');
+    }
+  }
+  BufferWriteChar(buffer, ')');
+  evalExpr(buffer, body);
+}
+
+void evalTypeExpr(Buffer *buffer, Expr *expr) {
+  switch ((int64_t)(((ValueType **)expr->subexprs)[0])) {
+    case ui64ValueType:
+      BufferWriteString(buffer, "uint64_t ");
+      break;
+    case StringValueType:
+      BufferWriteString(buffer, "(char *) ");
+      break;
+    case CustomValueType:
+      assert(0 && "TODO: implement custom types");
+      break;
+    default:
+      assert(0 && "Unexpected or unimplemented value type");
+  }
+}
+
+void evalVariableDeclExpr(Buffer *buffer, Expr *expr) {
+  Expr *type = ((Expr **)expr->subexprs)[0];
+  char *name = ((char **)expr->subexprs)[1];
+  evalTypeExpr(buffer, type);
+  BufferWriteString(buffer, name);
+}
+
 void evalExpr(Buffer *buffer, Expr *expr) {
   switch(expr->etype) {
     case ValueExpr:
@@ -417,6 +505,15 @@ void evalExpr(Buffer *buffer, Expr *expr) {
       return;
     case BlockExpr:
       evalBlockExpr(buffer, expr);
+      return;
+    case FunctionDeclExpr:
+      evalFunctionDeclExpr(buffer, expr);
+      return;
+    case TypeExpr:
+      evalTypeExpr(buffer, expr);
+      return;
+    case VariableDeclExpr:
+      evalVariableDeclExpr(buffer, expr);
       return;
     default:
       assert(0 && "Error: Expr has unknown etype");
@@ -574,6 +671,35 @@ int main(int argc, char **argv) {
   // tries to format the %d inside the string but I want raw output
 
   freeBuffer(output);
+
+  Expr *type1 = makeTypeExpr(ui64ValueType, 0);
+  freeExpr(type1);
+
+  Expr *varDecl1 = makeVariableDeclExpr(makeTypeExpr(ui64ValueType, 0), "x");
+  Expr *varDecl2 = makeVariableDeclExpr(makeTypeExpr(ui64ValueType, 0), "y");
+  Expr **varDecls = malloc(2 * sizeof (Expr *));
+  varDecls[0] = varDecl1;
+  varDecls[1] = varDecl2;
+  Expr *args1 = makeExpr(ExprListExpr, 2, varDecls);
+  freeExpr(args1);
+
+  Buffer *output2 = makeBuffer(1024);
+  
+  char *name = "add";
+  Expr *type = makeTypeExpr(ui64ValueType, 0);
+  //Expr *args = makeExprListExpr(2, (Expr *[]){makeVariableDeclExpr(makeTypeExpr(ui64ValueType, 0), "x"), makeVariableDeclExpr(makeTypeExpr(ui64ValueType, 0), "y")} );
+  Expr *varX = makeVariableDeclExpr(makeTypeExpr(ui64ValueType, 0), "x");
+  Expr *varY = makeVariableDeclExpr(makeTypeExpr(ui64ValueType, 0), "y");
+  Expr **argsArray = malloc(2 * sizeof (Expr *));
+  argsArray[0] = varX;
+  argsArray[1] = varY;
+  Expr *args = makeExpr(ExprListExpr, 2, argsArray);
+  Expr *body = makeExpr(BlockExpr, 1, makeScope(128));
+  Expr *functionDecl = makeFunctionDeclExpr(name, type, args, body);
+  evalFunctionDeclExpr(output2, functionDecl);
+  freeExpr(functionDecl);
+  puts(output2->buf);
+  freeBuffer(output2);
   
   return 0;
 }
