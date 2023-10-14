@@ -32,6 +32,7 @@ typedef enum {
   VariableDeclExpr,
   IdentifierExpr,
   GroupingExpr,
+  ReturnExpr,
 } ExprType;
 
 typedef struct Expr Expr;
@@ -242,6 +243,10 @@ Expr *makeGroupingExpr(Expr *expr) {
   return makeExpr(GroupingExpr, 1, expr);
 }
 
+Expr *makeReturnExpr(Expr *expr) {
+  return makeExpr(ReturnExpr, 1, expr);
+}
+
 /*
  * recursively free expression, subexprs, and values in subexprs.
  * works now because I'm never sharing resources across expressions.
@@ -302,6 +307,9 @@ void freeExpr(Expr *exprPtr) {
     // so I should never have to deallocate them... i think.
     break;
   case GroupingExpr:
+    freeExpr(exprPtr->subexprs);
+    break;
+  case ReturnExpr:
     freeExpr(exprPtr->subexprs);
     break;
   default:
@@ -519,6 +527,13 @@ void evalGroupingExpr(Buffer *buffer, Expr *expr) {
   BufferWriteChar(buffer, ')');
 }
 
+void evalReturnExpr(Buffer *buffer, Expr *expr) {
+  BufferWriteString(buffer, "return ");
+  evalExpr(buffer, expr->subexprs);
+  BufferWriteChar(buffer, ';');
+  BufferWriteChar(buffer, '\n');
+}
+
 void evalExpr(Buffer *buffer, Expr *expr) {
   switch(expr->etype) {
     case ValueExpr:
@@ -550,6 +565,9 @@ void evalExpr(Buffer *buffer, Expr *expr) {
       return;
     case GroupingExpr:
       evalGroupingExpr(buffer, expr);
+      return;
+    case ReturnExpr:
+      evalReturnExpr(buffer, expr);
       return;
     default:
       assert(0 && "Error: Expr has unknown etype");
@@ -780,6 +798,13 @@ int main(int argc, char **argv) {
         addXY1,
         addXY2));
     scopeAddExpr(bodyScope, stmt2);
+
+    Expr *returnExpr = makeReturnExpr(
+      makeBinAddExpr(
+        makeIdentifierExpr("x"), 
+        makeIdentifierExpr("y")));
+    scopeAddExpr(bodyScope, returnExpr);
+
     // TODO: implement return statement
     Expr *body = makeExpr(BlockExpr, 1, bodyScope);
     Expr *functionDecl = makeFunctionDeclExpr("add", retType, args, body);
