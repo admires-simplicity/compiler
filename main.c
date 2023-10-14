@@ -31,6 +31,7 @@ typedef enum {
   TypeExpr,
   VariableDeclExpr,
   IdentifierExpr,
+  GroupingExpr,
 } ExprType;
 
 typedef struct Expr Expr;
@@ -237,6 +238,10 @@ Expr *makeIdentifierExpr(char *lexeme) {
   return makeExpr(IdentifierExpr, 1, lexeme);
 }
 
+Expr *makeGroupingExpr(Expr *expr) {
+  return makeExpr(GroupingExpr, 1, expr);
+}
+
 /*
  * recursively free expression, subexprs, and values in subexprs.
  * works now because I'm never sharing resources across expressions.
@@ -296,8 +301,11 @@ void freeExpr(Expr *exprPtr) {
     // and later I'll just store them by position in a source file
     // so I should never have to deallocate them... i think.
     break;
+  case GroupingExpr:
+    freeExpr(exprPtr->subexprs);
+    break;
   default:
-    printf("ERROR: tried to free unknown Expr type\n");
+    printf("ERROR: tried to free unknown Expr type %d\n", exprPtr->etype);
     exit(1);
   }
   
@@ -505,6 +513,12 @@ void evalIdentifierExpr(Buffer *buffer, Expr *expr) {
   BufferWriteString(buffer, (char *)expr->subexprs); // will this work ??
 }
 
+void evalGroupingExpr(Buffer *buffer, Expr *expr) {
+  BufferWriteChar(buffer, '(');
+  evalExpr(buffer, expr->subexprs);
+  BufferWriteChar(buffer, ')');
+}
+
 void evalExpr(Buffer *buffer, Expr *expr) {
   switch(expr->etype) {
     case ValueExpr:
@@ -533,6 +547,9 @@ void evalExpr(Buffer *buffer, Expr *expr) {
       return;
     case IdentifierExpr:
       evalIdentifierExpr(buffer, expr);
+      return;
+    case GroupingExpr:
+      evalGroupingExpr(buffer, expr);
       return;
     default:
       assert(0 && "Error: Expr has unknown etype");
@@ -749,12 +766,26 @@ int main(int argc, char **argv) {
         makeIdentifierExpr("x"), 
         makeIdentifierExpr("y")));
     scopeAddExpr(bodyScope, stmt1);
+
+    Expr *addXY1 = makeGroupingExpr(
+      makeBinAddExpr(
+        makeIdentifierExpr("x"), 
+        makeIdentifierExpr("y")));
+    Expr *addXY2 = makeGroupingExpr(
+      makeBinAddExpr(
+        makeIdentifierExpr("x"), 
+        makeIdentifierExpr("y")));
+    Expr *stmt2 = makeStatementExpr(  
+      makeBinAddExpr(
+        addXY1,
+        addXY2));
+    scopeAddExpr(bodyScope, stmt2);
     // TODO: implement return statement
     Expr *body = makeExpr(BlockExpr, 1, bodyScope);
     Expr *functionDecl = makeFunctionDeclExpr("add", retType, args, body);
     evalFunctionDeclExpr(output, functionDecl);
-    freeExpr(functionDecl);
     puts(output->buf);
+    freeExpr(functionDecl);
     freeBuffer(output);
   }
   
