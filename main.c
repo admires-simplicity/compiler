@@ -6,12 +6,7 @@
 #include <stdbool.h>
 #include <assert.h>
 
-typedef enum {
-  cintValueType, // this is probably bad (??)
-  ui64ValueType,
-  StringValueType,
-  CustomValueType,
-} ValueType;
+#include "types.h"
 
 typedef struct {
   ValueType vtype;
@@ -50,11 +45,11 @@ struct Expr {
 //   Expr *expr;
 // } Statement;
 
-typedef struct {
-  size_t size;
-  size_t next;
-  void *arr;
-} DynamicArray;
+// typedef struct {
+//   size_t size;
+//   size_t next;
+//   void *arr;
+// } DynamicArray;
 
 typedef struct {
   size_t expr_count;
@@ -945,5 +940,7 @@ int main(int argc, char **argv) {
     freeBuffer(output);
   }
   
+
+
   return 0;
 }
