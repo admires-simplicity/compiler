@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "../types.h"
+#include "../src/types.h"
 
 typedef enum {
   LiteralToken,
@@ -301,13 +301,15 @@ int main(int argc, char **argv) {
   // addToken(tl, makeToken(SemicolonToken, NULL, 0));
   // addToken(tl, makeToken(EOFToken, NULL, 0));
 
+
+
   printTokenList(tl);
   
   freeTokenList(tl);
 
-  printf("source:\n%s\n", source);
+  printf("source:\n%s\n", lexer->source);
 
+  //free(lexer->source);
   free(lexer);
 
-  free(source);
 }

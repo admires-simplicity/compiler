@@ -7,6 +7,7 @@
 #include <assert.h>
 
 #include "types.h"
+#include "scope.h"
 
 typedef struct {
   ValueType vtype;
