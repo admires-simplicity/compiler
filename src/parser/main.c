@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "../src/types.h"
+#include "../common/types.h"
 
 typedef enum {
   LiteralToken,

@@ -1,38 +1,48 @@
-# Compiler and compiler flags
-CC := gcc
-CFLAGS :=# -Wall -Wextra
-DEBUG_CFLAGS := -g
+# Compiler and flags
+CC = gcc
+CFLAGS = -Wall
+
+# Debug flags
+DEBUG_CFLAGS = -g
 
 # Directories
-SRC_DIR := src
-OBJ_DIR := obj
+SRC_DIR = src
+OBJ_DIR = obj
+BIN_DIR = bin
 
-# Source files
-SRCS := $(wildcard $(SRC_DIR)/*.c)
-OBJS := $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
+# Common source files
+COMMON_SRCS = $(wildcard $(SRC_DIR)/common/*.c)
+COMMON_OBJS = $(patsubst $(SRC_DIR)/common/%.c, $(OBJ_DIR)/common/%.o, $(COMMON_SRCS))
 
-# Target binary
-TARGET := compiler
+# Source files for executables in each subdirectory of src
+EXE_SRCS = $(wildcard $(SRC_DIR)/*/main.c)
+EXE_DIRS = $(dir $(EXE_SRCS))
+EXE_NAMES = $(patsubst $(SRC_DIR)/%/main.c, $(BIN_DIR)/%, $(EXE_SRCS))
 
-# Phony targets
-.PHONY: all debug clean
+# Debug executables
+DEBUG_EXE_NAMES = $(addsuffix _debug, $(EXE_NAMES))
 
-# Default target
-all: $(TARGET)
+# Build all executables
+all: $(EXE_NAMES)
 
-# Debug target
-debug: CFLAGS += $(DEBUG_CFLAGS)
-debug: all
+debug: $(DEBUG_EXE_NAMES)
 
-# Compile and build the target binary
-$(TARGET): $(OBJS) $(MAIN_OBJ)
-	$(CC) $(CFLAGS) $^ -o $@
+# Build each executable
+$(BIN_DIR)/%: $(SRC_DIR)/%/main.c $(COMMON_OBJS)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -o $@ $^
 
-# Compile source files into object files (excluding main.c)
-$(OBJS): $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+# Build each debug executable
+$(BIN_DIR)/%_debug: $(SRC_DIR)/%/main.c $(COMMON_OBJS)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(DEBUG_CFLAGS) -o $@ $^
 
-# Clean the object files and the target binary
+# Build common object files
+$(OBJ_DIR)/common/%.o: $(SRC_DIR)/common/%.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 clean:
-	rm -rf $(OBJ_DIR) $(TARGET)
+	rm -rf $(OBJ_DIR) $(BIN_DIR)
+
+.PHONY: all clean debug

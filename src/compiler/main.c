@@ -6,41 +6,14 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#include "types.h"
-#include "scope.h"
+#include <inttypes.h>
 
-typedef struct {
-  ValueType vtype;
-  size_t size;
-  uint64_t *octabytes;
-} Value;
+#include "../common/types.h"
+#include "../common/scope.h"
+#include "../common/expr.h"
+#include "../common/value.h"
 
-typedef enum {
-  NullExpr,
-  ValueExpr,
-  BinAddExpr,
-  ExprListExpr,
-  CallExpr,
-  StatementExpr,
-  BlockExpr,
-  FunctionDeclExpr, // at some point I will probably want to split this into FunctionDeclExpr and FunctionDefExpr
-  TypeExpr,
-  VariableDeclExpr,
-  IdentifierExpr,
-  GroupingExpr,
-  ReturnExpr,
-  EqEqExpr, // x == y
-  ConditionalExpr,
-  AssignmentExpr,
-} ExprType;
 
-typedef struct Expr Expr;
-
-struct Expr {
-  ExprType etype;
-  size_t subexpr_count;
-  void *subexprs;
-};
 
 // typedef struct {
 //   Expr *expr;
@@ -52,11 +25,6 @@ struct Expr {
 //   void *arr;
 // } DynamicArray;
 
-typedef struct {
-  size_t expr_count;
-  size_t expr_space;
-  Expr **exprs;
-} Scope;
 
 typedef struct {
   size_t size;
@@ -77,71 +45,7 @@ void scopeAddExpr(Scope *scope, Expr *expr);
 
 
 
-/*
- * vtype -- type of value to make
- * size -- number of octabytes to allocate for *octabytes
- * *values -- ptr to values to set octabytes to
- * 
- * must be passed a valid vtype and valid size. *values is optional and may be
- * NULL.
- */
-Value *makeValue(ValueType vtype, size_t size, void *values) {
-  Value *value = malloc(sizeof (Value));
-  value->vtype = vtype;
-  if (size > 0 && values != NULL) {
-    // allocate space for octabytes and copy from values
-    value->octabytes = malloc(size * sizeof (uint64_t));
-    if (value->octabytes == NULL) exit(1);
-    memcpy(value->octabytes, values, size);
 
-    // TODO: think about -- should this take a preallocated *values and just set value->octabytes to values, or should it copy values??
-  }
-  else if (size > 0 && values == NULL) {
-    // allocate space but don't copy
-    value->octabytes = malloc(size * sizeof(uint64_t));
-    if (value->octabytes == NULL) exit(1);
-  }
-  else if (size == 0) {
-    // don't allow to not allocate an octabytes ptr,
-    // so that we can always free octabytes in freeValue.
-
-    // TODO: implement better error handling
-    exit(1);
-  }
-  return value;
-}
-
-void make_ui64ValueAt(Value* valuePtr, uint64_t x) {
-  valuePtr->octabytes[0] = x;
-  valuePtr->size = 1;
-}
-
-Value *make_ui64Value(uint64_t x) {
-  Value *valuePtr = makeValue(ui64ValueType, 1, NULL);
-  make_ui64ValueAt(valuePtr, x);
-  return valuePtr;
-}
-
-Value *makeStringValue(char *str) {
-  // the literal whole reason I wrote makeValue before was so that I could
-  // use one function for making different types of values...
-  // maybe I should make this function use that one instead, but for now this
-  // is better
-  uint64_t *strOctabytesPtr = malloc((strlen(str) + 1) * sizeof (uint64_t));
-  for (int i = 0; i < strlen(str); ++i) strOctabytesPtr[i] = str[i];
-  strOctabytesPtr[strlen(str)] = '\0';
-  Value *valuePtr = malloc(sizeof (Value));
-  valuePtr->vtype = StringValueType;
-  valuePtr->size = strlen(str) + 1;
-  valuePtr->octabytes = strOctabytesPtr;
-  return valuePtr;
-  //TODO: check malloc fail
-}
-
-void freeValue(Value *value) {
-  free(value->octabytes);
-  free(value);
-}
 
 Expr *exprAlloc() {
   return malloc(sizeof (Expr));
@@ -167,7 +71,7 @@ Expr *makeExpr(ExprType etype, size_t subexpr_count, void *subexprs) {
   return exprPtr;
 }
 
-void *makeValueExprAt(Expr *exprPtr, Value *valuePtr) {
+void makeValueExprAt(Expr *exprPtr, Value *valuePtr) {
   makeExprAt(exprPtr, ValueExpr, 1, valuePtr);
 }
 
@@ -449,11 +353,11 @@ void eval_ui64Value(Buffer *buffer, Value *value) {
   Buffer *tmp = makeBuffer(0);
 
   int rep_len = snprintf(tmp->buf,
-    tmp->size, "%d", value->octabytes[0]);
+    tmp->size, "%" PRIu64 "", value->octabytes[0]);
 
   if (rep_len + 1 > tmp->size) {
     BufferIncreaseSize(tmp, rep_len + 1);
-    rep_len = snprintf(tmp->buf, tmp->size, "%d", value->octabytes[0]);
+    rep_len = snprintf(tmp->buf, tmp->size, "%" PRIu64 "", value->octabytes[0]);
     assert(tmp->size >= rep_len + 1);
   }
 
