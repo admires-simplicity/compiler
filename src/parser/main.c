@@ -1,36 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
-#include "../common/types.h"
+#include "../common/parser.h"
 
-typedef enum {
-  LiteralToken,
-  IdentifierToken,
+//#include "../common/types.h"
 
-  LeftParenToken,
-  RightParenToken,
-  LeftBraceToken,
-  RightBraceToken,
-  LeftBracketToken,
-  RightBracketToken,
-
-  ArrowToken,
-  PlusToken,
-
-  SemicolonToken,
-
-  // CommaToken,
-  // DotToken,
-
-
-  
-  DefToken,
-
-  EOFToken,
-
-
-} TokenType;
 
 typedef struct {
   TokenType type;

@@ -1,10 +1,15 @@
 #ifndef VALUE_H
 #define VALUE_H
 
-#include "types.h"
-
 #include <stddef.h>
 #include <stdint.h>
+
+typedef enum {
+  cintValueType, // this is probably bad (??)
+  ui64ValueType,
+  StringValueType,
+  CustomValueType,
+} ValueType;
 
 typedef struct {
   ValueType vtype;

@@ -5,6 +5,7 @@
 #include "../common/value.h"
 #include "../common/expr.h"
 #include "../common/scope.h"
+#include "../common/trie.h"
 
 
 #define BEGIN (printf("beginning %s\n", __func__))
@@ -34,9 +35,36 @@ void value_test() {
   END;
 }
 
+void expr_test() {
+  //Expr *
+}
+
+void trie_test() {
+  BEGIN;
+  char *value0 = "howdy";
+  char *value1 = "pardner";
+  Trie *t = makeTrie();
+  assert(trieGet(NULL, NULL) == NULL);
+  assert(trieGet(t, NULL) == NULL);
+  assert(trieGet(NULL, "abc") == NULL);
+  assert(trieGet(t, "") == NULL);
+  assert(trieGet(t, "a") == NULL);
+  assert(trieGet(t, "abc") == NULL);
+  assert(trieAdd(t, "a", value0) != NULL);
+  assert(trieAdd(t, "a", value1) == NULL);
+  assert(trieAdd(t, "abc", value1) != NULL);
+  assert(trieGet(t, "a") == value0);
+  assert(trieGet(t, "abc") == value1);
+  freeTrie(t);
+  END;
+}
+
 int main() {
   value_test();
-  
+  expr_test(); 
   // scope_test();
+
+  trie_test();
+
 
 }

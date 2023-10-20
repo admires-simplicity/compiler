@@ -1,6 +1,6 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = #-Wall
 
 # Debug flags
 DEBUG_CFLAGS = -g

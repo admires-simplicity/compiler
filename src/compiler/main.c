@@ -8,7 +8,6 @@
 
 #include <inttypes.h>
 
-#include "../common/types.h"
 #include "../common/scope.h"
 #include "../common/expr.h"
 #include "../common/value.h"
@@ -176,6 +175,12 @@ Expr *makeAssignmentExpr(Expr *left, Expr *right) {
   return makeExpr(AssignmentExpr, 2, subexprs);
 }
 
+Expr *makeTypedExprExpr(Expr *type, Expr *expr) {
+  Expr **subexprs = malloc(2 * sizeof (Expr *));
+  subexprs[0] = type;
+  subexprs[1] = expr;
+  return makeExpr(TypedExprExpr, 2, subexprs);
+}
 
 
 
@@ -262,6 +267,11 @@ void freeExpr(Expr *exprPtr) {
     free(exprPtr->subexprs);
     break;
   case AssignmentExpr:
+    freeExpr(((Expr **)exprPtr->subexprs)[0]);
+    freeExpr(((Expr **)exprPtr->subexprs)[1]);
+    free(exprPtr->subexprs);
+    break;
+  case TypedExprExpr:
     freeExpr(((Expr **)exprPtr->subexprs)[0]);
     freeExpr(((Expr **)exprPtr->subexprs)[1]);
     free(exprPtr->subexprs);
@@ -845,6 +855,12 @@ int main(int argc, char **argv) {
     freeBuffer(output);
   }
   
+  {
+    Expr *typedExprExpr = makeTypedExprExpr(
+      makeTypeExpr(ui64ValueType, 0),
+      makeValueExpr(make_ui64Value(123)));
+    freeExpr(typedExprExpr);
+  }
 
 
   return 0;
