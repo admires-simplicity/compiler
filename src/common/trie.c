@@ -18,7 +18,7 @@ Trie *makeTrie() {
 }
 
 void freeTrie(Trie *trie) {
-  if (trie->children == NULL) {
+  if (trie->children != NULL) {
     for (size_t i = 0; i < trie->children_count; ++i) {
       freeTrie(trie->children[i]);
     }
@@ -29,8 +29,7 @@ void freeTrie(Trie *trie) {
 
 
 void *trieGet(Trie *trie, char *key) {
-  if (trie == NULL || key == NULL || trie->children == NULL) {
-    // invalid
+  if (trie == NULL || key == NULL) { // invalid
     return NULL;
   }
   if (key[0] == '\0') {
@@ -67,7 +66,7 @@ Trie *trieAdd(Trie *trie, char *key, void *value) {
   // key_char not in trie
   size_t key_len = strlen(key);
   for (size_t i = 0; i < key_len; ++i) {
-    Trie *new_children = realloc(
+    Trie **new_children = realloc(
       trie->children, sizeof(Trie) * (trie->children_count + 1));
     if (new_children == NULL) {
       printf("Error: Could not reallocate memory for Trie->children\n");
@@ -83,5 +82,22 @@ Trie *trieAdd(Trie *trie, char *key, void *value) {
   return trie;
 }
 
-// THIS IS BROKEN BECAUSE I WAS THINKING OF children AS A (Trie *)
-// BUT IT ACTUALLY NEEDS TO BE A (Trie **) SO I NEED TO CHANGE THE LOGIC
+void print_trie(Trie *trie, int indent) {
+  if (trie == NULL) {
+    printf("NullTrie\n");
+    return;
+  }
+  for (int i = 0; i < indent; ++i) {
+    printf("-");
+  }
+  printf("Key: %c\n", trie->key_char);
+  if (trie->value != NULL) {
+    for (int i = 0; i < indent; ++i) {
+      printf(" ");
+    }
+    printf("Value: %s\n", (char *) trie->value);
+  }
+  for (size_t i = 0; i < trie->children_count; ++i) {
+    print_trie(trie->children[i], indent + 1);
+  }
+}

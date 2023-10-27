@@ -17,4 +17,6 @@ void freeTrie(Trie *trie);
 void *trieGet(Trie *trie, char *key);
 Trie *trieAdd(Trie *trie, char *key, void *value);
 
+void print_trie(Trie *trie, int indent);
+
 #endif

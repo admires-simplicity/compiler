@@ -55,6 +55,7 @@ void trie_test() {
   assert(trieAdd(t, "abc", value1) != NULL);
   assert(trieGet(t, "a") == value0);
   assert(trieGet(t, "abc") == value1);
+  print_trie(t, 0);
   freeTrie(t);
   END;
 }
